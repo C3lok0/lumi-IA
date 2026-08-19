@@ -3,7 +3,7 @@ from google import genai
 
 # Configuração da página
 st.set_page_config(page_title="LUMI - Chatbot IA", page_icon="LUMI")
-st.title("LUMI - Meu Chatbot Pessoal")
+st.title("LUMI")
 st.write("Converse com a LUMI, IA criada por Marcelo e Isabelle, para um trabalho da faculdade FATEC!")
 
 # 1. Obter a chave dos Secrets de forma segura
