@@ -1,8 +1,9 @@
 import streamlit as st
 from google import genai
+from google.genai import types  # Importante para usar o system_instruction
 
 # Configuração da página
-st.set_page_config(page_title="LUMI - Chatbot IA", page_icon="LUMI")
+st.set_page_config(page_title="LUMI", page_icon="LUMI")
 st.title("LUMI")
 st.write("Converse com a LUMI, IA criada por Marcelo e Isabelle, para um trabalho da faculdade FATEC!")
 
@@ -18,7 +19,20 @@ if "client" not in st.session_state:
     st.session_state.client = genai.Client(api_key=API_KEY)
 
 if "chat" not in st.session_state:
-    st.session_state.chat = st.session_state.client.chats.create(model="gemini-3.6-flash")
+    # Instrução que define a identidade fixa da IA
+    instrucao_sistema = (
+        "Você é a LUMI, uma inteligência artificial amigável e prestativa criada "
+        "por Marcelo e Isabelle para um trabalho acadêmico da faculdade FATEC. "
+        "Você deve SEMPRE se identificar como LUMI, falar de forma educada e, "
+        "caso perguntem quem é você ou quem te criou, mencione o Marcelo, a Isabelle e a FATEC."
+    )
+
+    st.session_state.chat = st.session_state.client.chats.create(
+        model="gemini-3.6-flash",
+        config=types.GenerateContentConfig(
+            system_instruction=instrucao_sistema
+        )
+    )
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
