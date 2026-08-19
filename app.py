@@ -18,7 +18,7 @@ if "client" not in st.session_state:
     st.session_state.client = genai.Client(api_key=API_KEY)
 
 if "chat" not in st.session_state:
-    st.session_state.chat = st.session_state.client.chats.create(model="gemini-2.0-flash")
+    st.session_state.chat = st.session_state.client.chats.create(model="gemini-3.6-flash")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
