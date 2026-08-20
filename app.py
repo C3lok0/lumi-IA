@@ -24,7 +24,12 @@ except Exception:
     st.error("⚠️ Chave 'GEMINI_API_KEY' não encontrada nos Secrets do Streamlit!")
     st.stop()
 
-# 2. Inicializar o cliente, o chat e o contador do gravador
+# 2. Opção na barra lateral para ativar/desativar o áudio
+with st.sidebar:
+    st.header("⚙️ Configurações")
+    falar_resposta = st.toggle("🔊 Ouvir respostas da LUMI", value=True)
+
+# 3. Inicializar o cliente e chat na sessão
 if "client" not in st.session_state:
     st.session_state.client = genai.Client(api_key=API_KEY)
 
@@ -46,18 +51,17 @@ if "chat" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Contador para resetar o componente de áudio após o envio
 if "audio_counter" not in st.session_state:
     st.session_state.audio_counter = 0
 
-# 3. Exibir histórico de mensagens anteriores
+# 4. Exibir histórico de mensagens anteriores
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
-        if "audio" in message:
+        if "audio" in message and message["audio"] is not None:
             st.audio(message["audio"], format="audio/mp3")
 
-# 4. Entradas do Usuário (Texto ou Gravação com chave dinâmica)
+# 5. Entradas do Usuário (Texto ou Gravação)
 st.write("---")
 audio_input = st.audio_input(
     "🎤 Fale com a LUMI clicando no microfone:", 
@@ -65,7 +69,7 @@ audio_input = st.audio_input(
 )
 text_input = st.chat_input("Digite sua mensagem aqui...")
 
-# Identifica qual entrada foi utilizada
+# Identifica a entrada utilizada
 prompt_envio = None
 audio_bytes_envio = None
 
@@ -78,9 +82,9 @@ if audio_input is not None:
 elif text_input:
     prompt_envio = text_input
 
-# 5. Envio, Resposta e Reset do Gravador
+# 6. Envio, Resposta e Controle de Áudio
 if prompt_envio is not None:
-    # Registra e exibe a mensagem do usuário
+    # Exibe a entrada do usuário no chat
     if audio_bytes_envio:
         st.session_state.messages.append({
             "role": "user", 
@@ -95,24 +99,26 @@ if prompt_envio is not None:
         with st.chat_message("user"):
             st.markdown(prompt_envio)
 
-    # Processa resposta com a LUMI
+    # Processa e gera a resposta da LUMI
     with st.chat_message("assistant"):
         try:
             response = st.session_state.chat.send_message(prompt_envio)
             st.markdown(response.text)
             
-            # Gera áudio da resposta
-            audio_bytes = gerar_audio(response.text)
-            st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+            audio_bytes = None
+            # Só gera e toca o áudio se a opção estiver ATIVADA no menu lateral
+            if falar_resposta:
+                audio_bytes = gerar_audio(response.text)
+                st.audio(audio_bytes, format="audio/mp3", autoplay=True)
 
-            # Salva resposta no histórico
+            # Salva no histórico
             st.session_state.messages.append({
                 "role": "assistant", 
                 "content": response.text,
                 "audio": audio_bytes
             })
             
-            # Se a resposta veio de um áudio do usuário, incrementa o contador e recarrega para limpar o gravador
+            # Limpa o gravador de áudio para a próxima mensagem
             if audio_bytes_envio:
                 st.session_state.audio_counter += 1
                 st.rerun()
