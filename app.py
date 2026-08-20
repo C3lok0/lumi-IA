@@ -1,5 +1,6 @@
 import io
 import streamlit as st
+import streamlit.components.v1 as components
 from google import genai
 from google.genai import types
 from gtts import gTTS
@@ -17,6 +18,23 @@ def gerar_audio(texto):
     fp.seek(0)
     return fp
 
+# Função para tocar o áudio a 1.5x com gatilho automático
+def reproduzir_audio_customizado(audio_bytes):
+    st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+    # Script para definir a velocidade em 1.5x no player do navegador
+    components.html(
+        """
+        <script>
+            const audios = window.parent.document.querySelectorAll('audio');
+            audios.forEach(audio => {
+                audio.playbackRate = 1.5;
+                audio.play().catch(e => console.log("Aguardando interação do usuário para tocar som"));
+            });
+        </script>
+        """,
+        height=0,
+    )
+
 # 1. Obter a chave dos Secrets de forma segura
 try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
@@ -24,12 +42,12 @@ except Exception:
     st.error("⚠️ Chave 'GEMINI_API_KEY' não encontrada nos Secrets do Streamlit!")
     st.stop()
 
-# 2. Opção na barra lateral para ativar/desativar o áudio
+# 2. Opção na barra lateral
 with st.sidebar:
     st.header("⚙️ Configurações")
     falar_resposta = st.toggle("🔊 Ouvir respostas da LUMI", value=True)
 
-# 3. Inicializar o cliente e chat na sessão
+# 3. Inicializar cliente e sessão
 if "client" not in st.session_state:
     st.session_state.client = genai.Client(api_key=API_KEY)
 
@@ -54,14 +72,14 @@ if "messages" not in st.session_state:
 if "audio_counter" not in st.session_state:
     st.session_state.audio_counter = 0
 
-# 4. Exibir histórico de mensagens anteriores
+# 4. Exibir histórico
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if "audio" in message and message["audio"] is not None:
             st.audio(message["audio"], format="audio/mp3")
 
-# 5. Entradas do Usuário (Texto ou Gravação)
+# 5. Entradas do Usuário
 st.write("---")
 audio_input = st.audio_input(
     "🎤 Fale com a LUMI clicando no microfone:", 
@@ -69,7 +87,6 @@ audio_input = st.audio_input(
 )
 text_input = st.chat_input("Digite sua mensagem aqui...")
 
-# Identifica a entrada utilizada
 prompt_envio = None
 audio_bytes_envio = None
 
@@ -82,9 +99,8 @@ if audio_input is not None:
 elif text_input:
     prompt_envio = text_input
 
-# 6. Envio, Resposta e Controle de Áudio
+# 6. Processamento e Resposta
 if prompt_envio is not None:
-    # Exibe a entrada do usuário no chat
     if audio_bytes_envio:
         st.session_state.messages.append({
             "role": "user", 
@@ -99,26 +115,22 @@ if prompt_envio is not None:
         with st.chat_message("user"):
             st.markdown(prompt_envio)
 
-    # Processa e gera a resposta da LUMI
     with st.chat_message("assistant"):
         try:
             response = st.session_state.chat.send_message(prompt_envio)
             st.markdown(response.text)
             
             audio_bytes = None
-            # Só gera e toca o áudio se a opção estiver ATIVADA no menu lateral
             if falar_resposta:
                 audio_bytes = gerar_audio(response.text)
-                st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+                reproduzir_audio_customizado(audio_bytes)
 
-            # Salva no histórico
             st.session_state.messages.append({
                 "role": "assistant", 
                 "content": response.text,
                 "audio": audio_bytes
             })
             
-            # Limpa o gravador de áudio para a próxima mensagem
             if audio_bytes_envio:
                 st.session_state.audio_counter += 1
                 st.rerun()
