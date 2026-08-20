@@ -11,7 +11,7 @@ st.write("Converse com a LUMI, IA criada por Marcelo e Isabelle, para um trabalh
 
 # Função para converter texto da LUMI em áudio
 def gerar_audio(texto):
-    tts = gtts(text=texto, lang='pt', tld='com.br')
+    tts = gTTS(text=texto, lang='pt', tld='com.br')
     fp = io.BytesIO()
     tts.write_to_fp(fp)
     fp.seek(0)
