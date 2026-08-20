@@ -10,7 +10,7 @@ st.set_page_config(page_title="LUMI", page_icon="🌟")
 st.title("LUMI")
 st.write("Converse com a LUMI, IA criada por Marcelo e Isabelle, para um trabalho da faculdade FATEC!")
 
-# Função para converter texto em áudio na memória
+# Função para converter texto da LUMI em áudio
 def gerar_audio(texto):
     tts = gTTS(text=texto, lang='pt', tld='com.br')
     fp = io.BytesIO()
@@ -18,24 +18,24 @@ def gerar_audio(texto):
     fp.seek(0)
     return fp
 
-# Função para tocar o áudio a 1.5x com gatilho automático
-def reproduzir_audio_customizado(audio_bytes):
+# Função para tocar APENAS a resposta atual com autoplay e velocidade 1.5x
+def reproduzir_audio_resposta(audio_bytes):
     st.audio(audio_bytes, format="audio/mp3", autoplay=True)
-    # Script para definir a velocidade em 1.5x no player do navegador
     components.html(
         """
         <script>
             const audios = window.parent.document.querySelectorAll('audio');
-            audios.forEach(audio => {
-                audio.playbackRate = 1.5;
-                audio.play().catch(e => console.log("Aguardando interação do usuário para tocar som"));
-            });
+            if (audios.length > 0) {
+                const ultimoAudio = audios[audios.length - 1];
+                ultimoAudio.playbackRate = 1.5;
+                ultimoAudio.play().catch(e => console.log("Aguardando clique do usuário"));
+            }
         </script>
         """,
         height=0,
     )
 
-# 1. Obter a chave dos Secrets de forma segura
+# 1. Obter a chave dos Secrets
 try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
 except Exception:
@@ -72,12 +72,12 @@ if "messages" not in st.session_state:
 if "audio_counter" not in st.session_state:
     st.session_state.audio_counter = 0
 
-# 4. Exibir histórico
+# 4. Exibir histórico de mensagens anteriores (SEM autoplay para não sobrepor vozes)
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
         if "audio" in message and message["audio"] is not None:
-            st.audio(message["audio"], format="audio/mp3")
+            st.audio(message["audio"], format="audio/mp3", autoplay=False)
 
 # 5. Entradas do Usuário
 st.write("---")
@@ -99,7 +99,7 @@ if audio_input is not None:
 elif text_input:
     prompt_envio = text_input
 
-# 6. Processamento e Resposta
+# 6. Processamento da Resposta
 if prompt_envio is not None:
     if audio_bytes_envio:
         st.session_state.messages.append({
@@ -123,7 +123,8 @@ if prompt_envio is not None:
             audio_bytes = None
             if falar_resposta:
                 audio_bytes = gerar_audio(response.text)
-                reproduzir_audio_customizado(audio_bytes)
+                # Toca APENAS a resposta atual e aplica 1.5x
+                reproduzir_audio_resposta(audio_bytes)
 
             st.session_state.messages.append({
                 "role": "assistant", 
