@@ -2,7 +2,7 @@ import io
 import streamlit as st
 from google import genai
 from google.genai import types
-from gTTS import gTTS
+from gtts import gtts
 
 # Configuração da página
 st.set_page_config(page_title="LUMI", page_icon="🌟")
@@ -11,7 +11,7 @@ st.write("Converse com a LUMI, IA criada por Marcelo e Isabelle, para um trabalh
 
 # Função para converter texto da LUMI em áudio
 def gerar_audio(texto):
-    tts = gTTS(text=texto, lang='pt', tld='com.br')
+    tts = gtts(text=texto, lang='pt', tld='com.br')
     fp = io.BytesIO()
     tts.write_to_fp(fp)
     fp.seek(0)
