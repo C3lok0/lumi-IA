@@ -2,7 +2,7 @@ import io
 import streamlit as st
 from google import genai
 from google.genai import types
-from gtts import gtts
+from gTTS import gTTS
 
 # Configuração da página
 st.set_page_config(page_title="LUMI", page_icon="🌟")
