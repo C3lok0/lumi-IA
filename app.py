@@ -2,14 +2,14 @@ import io
 import streamlit as st
 from google import genai
 from google.genai import types
-from gtts import gTTS
+from gTTS import gTTS
 
 # Configuração da página
 st.set_page_config(page_title="LUMI", page_icon="🌟")
 st.title("LUMI")
 st.write("Converse com a LUMI, IA criada por Marcelo e Isabelle, para um trabalho da faculdade FATEC!")
 
-# Função para converter texto em áudio na memória
+# Função para converter texto da LUMI em áudio
 def gerar_audio(texto):
     tts = gTTS(text=texto, lang='pt', tld='com.br')
     fp = io.BytesIO()
@@ -33,7 +33,7 @@ if "chat" not in st.session_state:
         "Você é a LUMI, uma inteligência artificial amigável e prestativa. "
         "Você deve SEMPRE se identificar como LUMI, falar de forma educada e, "
         "caso perguntem quem é você ou quem te criou, mencione o Marcelo e a Isabelle enquanto estavam na FATEC. "
-        "Responda de forma direta e se for usar formatações complexas como tabelas, diga que esta a exibir uma tabela, pois respondara com audio."
+        "Responda de forma direta e se for usar formatações complexas como tabelas, diga que está a exibir uma tabela, pois responderá com áudio."
     )
 
     st.session_state.chat = st.session_state.client.chats.create(
@@ -53,24 +53,52 @@ for message in st.session_state.messages:
         if "audio" in message:
             st.audio(message["audio"], format="audio/mp3")
 
-# 4. Campo de mensagem e envio para a IA
-if prompt := st.chat_input("Digite sua mensagem aqui..."):
-    # Exibe a mensagem do usuário na tela
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+# 4. Entradas do Usuário (Texto ou Gravação de Áudio)
+st.write("---")
+audio_input = st.audio_input("🎤 Fale com a LUMI clicando no microfone:")
+text_input = st.chat_input("Digite sua mensagem aqui...")
 
-    # Gera a resposta da LUMI e o áudio
+# Lógica para processar áudio ou texto digitado
+prompt_envio = None
+audio_bytes_envio = None
+
+if audio_input is not None:
+    audio_bytes_envio = audio_input.read()
+    prompt_envio = types.Part.from_bytes(
+        data=audio_bytes_envio,
+        mime_type="audio/wav"
+    )
+elif text_input:
+    prompt_envio = text_input
+
+# 5. Envio e Resposta da LUMI
+if prompt_envio is not None:
+    # Exibe a entrada do usuário (texto ou player de áudio enviado)
+    if audio_bytes_envio:
+        st.session_state.messages.append({
+            "role": "user", 
+            "content": "🎙️ *[Mensagem de áudio enviada]*", 
+            "audio": audio_bytes_envio
+        })
+        with st.chat_message("user"):
+            st.markdown("🎙️ *[Mensagem de áudio enviada]*")
+            st.audio(audio_bytes_envio)
+    else:
+        st.session_state.messages.append({"role": "user", "content": prompt_envio})
+        with st.chat_message("user"):
+            st.markdown(prompt_envio)
+
+    # Gera a resposta e o áudio da LUMI
     with st.chat_message("assistant"):
         try:
-            response = st.session_state.chat.send_message(prompt)
+            response = st.session_state.chat.send_message(prompt_envio)
             st.markdown(response.text)
             
-            # Gera a voz da LUMI
+            # Gera e reproduz a voz da LUMI
             audio_bytes = gerar_audio(response.text)
             st.audio(audio_bytes, format="audio/mp3", autoplay=True)
 
-            # Salva no histórico com o áudio
+            # Salva no histórico
             st.session_state.messages.append({
                 "role": "assistant", 
                 "content": response.text,
