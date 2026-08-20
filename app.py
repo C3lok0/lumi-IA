@@ -29,9 +29,9 @@ except Exception:
 
 # 2. Opção na barra lateral
 with st.sidebar:
-    st.header("⚙️ Configurações")
+    st.header(" Configurações")
     falar_resposta = st.toggle("🔊 Ouvir respostas da LUMI", value=True)
-    if st.button("🗑️ Limpar Conversa"):
+    if st.button(" Limpar Conversa"):
         st.session_state.messages = []
         st.session_state.audio_counter += 1
         st.rerun()
