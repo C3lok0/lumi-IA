@@ -1,6 +1,5 @@
 import io
 import streamlit as st
-import streamlit.components.v1 as components
 from google import genai
 from google.genai import types
 from gtts import gTTS
@@ -17,23 +16,6 @@ def gerar_audio(texto):
     tts.write_to_fp(fp)
     fp.seek(0)
     return fp
-
-# Função para tocar APENAS a resposta atual com autoplay e velocidade 1.5x
-def reproduzir_audio_resposta(audio_bytes):
-    st.audio(audio_bytes, format="audio/mp3", autoplay=True)
-    components.html(
-        """
-        <script>
-            const audios = window.parent.document.querySelectorAll('audio');
-            if (audios.length > 0) {
-                const ultimoAudio = audios[audios.length - 1];
-                ultimoAudio.playbackRate = 1.5;
-                ultimoAudio.play().catch(e => console.log("Aguardando clique do usuário"));
-            }
-        </script>
-        """,
-        height=0,
-    )
 
 # 1. Obter a chave dos Secrets
 try:
@@ -53,7 +35,7 @@ if "client" not in st.session_state:
 
 if "chat" not in st.session_state:
     instrucao_sistema = (
-       "Você é a LUMI, uma inteligência artificial amigável e prestativa criada pelo Marcelo e pela Isabelle na FATEC. "
+        "Você é a LUMI, uma inteligência artificial amigável e prestativa criada pelo Marcelo e pela Isabelle na FATEC. "
         "Apenas se identifique ou diga quem te criou CASO o usuário pergunte explicitamente sobre quem é você ou quem te criou. "
         "Nas conversas normais, responda diretamente à pergunta do usuário de forma educada, sem se apresentar a cada mensagem. "
         "Responda de forma direta e se for usar formatações complexas como tabelas, diga que está a exibir uma tabela, pois responderá com áudio."
@@ -72,7 +54,7 @@ if "messages" not in st.session_state:
 if "audio_counter" not in st.session_state:
     st.session_state.audio_counter = 0
 
-# 4. Exibir histórico de mensagens anteriores (SEM autoplay para não sobrepor vozes)
+# 4. Exibir histórico de mensagens anteriores
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
@@ -118,17 +100,20 @@ if prompt_envio is not None:
     with st.chat_message("assistant"):
         try:
             response = st.session_state.chat.send_message(prompt_envio)
-            st.markdown(response.text)
+            texto_resposta = response.text
+            
+            # Exibe o texto limpo no chat
+            st.markdown(texto_resposta)
             
             audio_bytes = None
             if falar_resposta:
-                audio_bytes = gerar_audio(response.text)
-                # Toca APENAS a resposta atual e aplica 1.5x
-                reproduzir_audio_resposta(audio_bytes)
+                audio_bytes = gerar_audio(texto_resposta)
+                st.audio(audio_bytes, format="audio/mp3", autoplay=True)
 
+            # Salva a mensagem formatada no histórico
             st.session_state.messages.append({
                 "role": "assistant", 
-                "content": response.text,
+                "content": texto_resposta,
                 "audio": audio_bytes
             })
             
