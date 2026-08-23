@@ -1,19 +1,20 @@
 import io
 import re
+import time
 import streamlit as st
 from google import genai
 from google.genai import types
 from gtts import gTTS
 
 # Configuração da página
-st.set_page_config(page_title="LUMI", page_icon="🌟")
-st.title("LUMI")
-st.write("Converse com a LUMI, IA criada por Marcelo e Isabelle, para um trabalho da faculdade FATEC!")
+st.set_page_config(page_title="LUMI", page_icon="🌟", layout="wide")
+st.title("🌟 LUMI - Inteligência Artificial")
+st.caption("Desenvolvida por Marcelo e Isabelle | FATEC")
 
-# Função para converter texto da LUMI em áudio
-def gerar_audio(texto):
+# Função para converter texto da LUMI em áudio com suporte a idioma
+def gerar_audio(texto, lang_code='pt', tld='com.br'):
     texto_limpo = re.sub(r'[\*\_\#\`]', '', texto)
-    tts = gTTS(text=texto_limpo, lang='pt', tld='com.br')
+    tts = gTTS(text=texto_limpo, lang=lang_code, tld=tld)
     fp = io.BytesIO()
     tts.write_to_fp(fp)
     fp.seek(0)
@@ -55,11 +56,32 @@ if "audio_counter" not in st.session_state:
 if "prompt_sugerido" not in st.session_state:
     st.session_state.prompt_sugerido = None
 
-# 3. Barra lateral (Configurações, Arquivos e Download)
+if "ultimo_tempo" not in st.session_state:
+    st.session_state.ultimo_tempo = 0.0
+
+# 3. Barra lateral (Configurações, Métricas, Arquivos e Download)
 with st.sidebar:
-    st.header("Configurações")
-    falar_resposta = st.toggle("🔊 Ouvir respostas da LUMI", value=True)
+    st.header("Configurações da LUMI")
+    falar_resposta = st.toggle("Ouvir respostas", value=True)
     
+    idioma_voz = st.selectbox(
+        "🎙️ Sotaque/Idioma da Voz:",
+        ["Português (Brasil)", "Português (Portugal)", "Inglês (US)"]
+    )
+    
+    # Mapeamento do idioma escolhido
+    lang_config = {'lang': 'pt', 'tld': 'com.br'}
+    if idioma_voz == "Português (Portugal)":
+        lang_config = {'lang': 'pt', 'tld': 'pt'}
+    elif idioma_voz == "Inglês (US)":
+        lang_config = {'lang': 'en', 'tld': 'com'}
+
+    st.write("---")
+    st.header("Painel de Métricas")
+    col_m1, col_m2 = st.columns(2)
+    col_m1.metric("Mensagens", len(st.session_state.messages))
+    col_m2.metric("Última Resposta", f"{st.session_state.ultimo_tempo:.2f}s")
+
     st.write("---")
     st.header("Anexar Arquivo")
     uploaded_file = st.file_uploader(
@@ -70,7 +92,6 @@ with st.sidebar:
     st.write("---")
     st.header("Opções da Conversa")
     
-    # Gerar arquivo de texto com o histórico para download
     if st.session_state.messages:
         historico_texto = "HISTÓRICO DE CONVERSA COM A LUMI (FATEC)\n" + "="*40 + "\n\n"
         for msg in st.session_state.messages:
@@ -84,13 +105,14 @@ with st.sidebar:
             mime="text/plain"
         )
     
-    if st.button(" Limpar Conversa"):
+    if st.button("Limpar Conversa"):
         st.session_state.messages = []
         st.session_state.audio_counter += 1
         st.session_state.prompt_sugerido = None
+        st.session_state.ultimo_tempo = 0.0
         st.rerun()
 
-# 4. Exibir Cards de Sugestão de Perguntas (Apenas se não houver mensagens no chat)
+# 4. Exibir Cards de Sugestão de Perguntas (Apenas se não houver mensagens)
 if not st.session_state.messages:
     st.write("### 💡 Sugestões de perguntas para começar:")
     col1, col2 = st.columns(2)
@@ -122,7 +144,7 @@ audio_input = st.audio_input(
 )
 text_input = st.chat_input("Digite sua mensagem aqui...")
 
-# Lógica para captura do prompt (Digitado, Áudio ou Sugestão por botão)
+# Lógica de captura de prompt
 prompt_envio = None
 audio_bytes_envio = None
 conteudos_para_envio = []
@@ -142,22 +164,26 @@ if audio_input is not None:
         mime_type="audio/wav"
     )
     conteudos_para_envio.append(audio_part)
+    # Adiciona instrução explícita para o Gemini transcrever a fala do usuário
+    conteudos_para_envio.append("Por favor, responda à minha fala no áudio e inicie a resposta indicando o que você entendeu que eu disse.")
 elif text_input:
     conteudos_para_envio.append(text_input)
 elif st.session_state.prompt_sugerido:
     conteudos_para_envio.append(st.session_state.prompt_sugerido)
-    st.session_state.prompt_sugerido = None  # Limpa o estado após ler
+    st.session_state.prompt_sugerido = None
 
 # 7. Processamento e Resposta da LUMI
 if conteudos_para_envio:
+    inicio_tempo = time.time()
+    
     mensagem_usuario = ""
     if uploaded_file is not None:
         mensagem_usuario += f"📎 *[Arquivo enviado: {uploaded_file.name}]*\n"
     
     if audio_bytes_envio:
         mensagem_usuario += "🎙️ *[Mensagem de áudio enviada]*"
-    elif isinstance(conteudos_para_envio[-1], str):
-        mensagem_usuario += conteudos_para_envio[-1]
+    elif isinstance(conteudos_para_envio[0], str):
+        mensagem_usuario += conteudos_para_envio[0]
 
     st.session_state.messages.append({
         "role": "user", 
@@ -182,8 +208,15 @@ if conteudos_para_envio:
             
             audio_bytes = None
             if falar_resposta:
-                audio_bytes = gerar_audio(texto_resposta)
+                audio_bytes = gerar_audio(
+                    texto_resposta, 
+                    lang_code=lang_config['lang'], 
+                    tld=lang_config['tld']
+                )
                 st.audio(audio_bytes, format="audio/mp3", autoplay=True)
+
+            # Calcula tempo gasto na resposta
+            st.session_state.ultimo_tempo = time.time() - inicio_tempo
 
             st.session_state.messages.append({
                 "role": "assistant", 
