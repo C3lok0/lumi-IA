@@ -12,7 +12,6 @@ st.write("Converse com a LUMI, IA criada por Marcelo e Isabelle, para um trabalh
 
 # Função para converter texto da LUMI em áudio
 def gerar_audio(texto):
-    # Remove marcações de formatação antes de gerar o áudio para evitar ruídos
     texto_limpo = re.sub(r'[\*\_\#\`]', '', texto)
     tts = gTTS(text=texto_limpo, lang='pt', tld='com.br')
     fp = io.BytesIO()
@@ -20,18 +19,26 @@ def gerar_audio(texto):
     fp.seek(0)
     return fp
 
-# 1. Obter a chave dos Secrets de forma segura
+# 1. Obter a chave dos Secrets
 try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
 except Exception:
     st.error("⚠️ Chave 'GEMINI_API_KEY' não encontrada nos Secrets do Streamlit!")
     st.stop()
 
-# 2. Opção na barra lateral
+# 2. Barra lateral (Configurações e envio de arquivo)
 with st.sidebar:
-    st.header(" Configurações")
+    st.header("⚙️ Configurações")
     falar_resposta = st.toggle("🔊 Ouvir respostas da LUMI", value=True)
-    if st.button(" Limpar Conversa"):
+    
+    st.write("---")
+    st.header("📁 Anexar Arquivo")
+    uploaded_file = st.file_uploader(
+        "Envie um PDF, Imagem ou Texto:", 
+        type=["pdf", "png", "jpg", "jpeg", "txt", "csv"]
+    )
+    
+    if st.button("🗑️ Limpar Conversa"):
         st.session_state.messages = []
         st.session_state.audio_counter += 1
         st.rerun()
@@ -45,7 +52,8 @@ if "chat" not in st.session_state:
         "Você é a LUMI, uma inteligência artificial amigável e prestativa criada pelo Marcelo e pela Isabelle na FATEC. "
         "Apenas se identifique ou diga quem te criou CASO o usuário pergunte explicitamente sobre quem é você ou quem te criou. "
         "Nas conversas normais, responda diretamente à pergunta do usuário de forma educada, sem se apresentar a cada mensagem. "
-        "Responda de forma direta e sem incluir marcações de tempo ou legendas. Se for usar tabelas, avise que exibirá uma tabela."
+        "Você também é capaz de analisar documentos, imagens e arquivos enviados pelos usuários. "
+        "Responda de forma direta e sem incluir marcações de tempo ou legendas."
     )
 
     st.session_state.chat = st.session_state.client.chats.create(
@@ -61,7 +69,7 @@ if "messages" not in st.session_state:
 if "audio_counter" not in st.session_state:
     st.session_state.audio_counter = 0
 
-# 4. Exibir histórico de mensagens anteriores
+# 4. Exibir histórico de mensagens
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
@@ -76,60 +84,79 @@ audio_input = st.audio_input(
 )
 text_input = st.chat_input("Digite sua mensagem aqui...")
 
+# Identifica o tipo de conteúdo enviado
 prompt_envio = None
 audio_bytes_envio = None
+conteudos_para_envio = []
+
+if uploaded_file is not None:
+    # Prepara o arquivo enviado na barra lateral
+    file_bytes = uploaded_file.read()
+    file_part = types.Part.from_bytes(
+        data=file_bytes,
+        mime_type=uploaded_file.type
+    )
+    conteudos_para_envio.append(file_part)
 
 if audio_input is not None:
     audio_bytes_envio = audio_input.read()
-    prompt_envio = types.Part.from_bytes(
+    audio_part = types.Part.from_bytes(
         data=audio_bytes_envio,
         mime_type="audio/wav"
     )
+    conteudos_para_envio.append(audio_part)
 elif text_input:
-    prompt_envio = text_input
+    conteudos_para_envio.append(text_input)
 
-# 6. Processamento da Resposta
-if prompt_envio is not None:
+# 6. Processamento e Resposta da LUMI
+if conteudos_para_envio:
+    # Registra no histórico do chat o envio do arquivo se houver
+    mensagem_usuario = ""
+    if uploaded_file is not None:
+        mensagem_usuario += f"📎 *[Arquivo enviado: {uploaded_file.name}]*\n"
+    
     if audio_bytes_envio:
-        st.session_state.messages.append({
-            "role": "user", 
-            "content": "🎙️ [Mensagem de áudio enviada]", 
-            "audio": audio_bytes_envio
-        })
-        with st.chat_message("user"):
-            st.write("🎙️ [Mensagem de áudio enviada]")
-            st.audio(audio_bytes_envio)
-    else:
-        st.session_state.messages.append({"role": "user", "content": prompt_envio})
-        with st.chat_message("user"):
-            st.write(prompt_envio)
+        mensagem_usuario += "🎙️ *[Mensagem de áudio enviada]*"
+    elif text_input:
+        mensagem_usuario += text_input
 
+    st.session_state.messages.append({
+        "role": "user", 
+        "content": mensagem_usuario,
+        "audio": audio_bytes_envio
+    })
+
+    with st.chat_message("user"):
+        st.write(mensagem_usuario)
+        if audio_bytes_envio:
+            st.audio(audio_bytes_envio)
+
+    # Processa com a LUMI
     with st.chat_message("assistant"):
         try:
-            response = st.session_state.chat.send_message(prompt_envio)
-            texto_resposta = response.text
+            # Envia a lista de partes (Texto/Áudio/Arquivo) para a API
+            response = st.session_state.chat.send_message(
+                conteudos_para_envio if len(conteudos_para_envio) > 1 else conteudos_para_envio[0]
+            )
+            texto_resposta = re.sub(r'\d{2}:\d{2}', '', response.text)
             
-            # Sanitiza o texto limpando padrões de timestamp remanescentes
-            texto_limpo = re.sub(r'\d{2}:\d{2}', '', texto_resposta)
-            
-            # Exibe em texto puro (st.write evita injeções de atributos do markdown)
-            st.write(texto_limpo)
+            st.write(texto_resposta)
             
             audio_bytes = None
             if falar_resposta:
-                audio_bytes = gerar_audio(texto_limpo)
+                audio_bytes = gerar_audio(texto_resposta)
                 st.audio(audio_bytes, format="audio/mp3", autoplay=True)
 
-            # Salva o texto sanitizado no histórico
             st.session_state.messages.append({
                 "role": "assistant", 
-                "content": texto_limpo,
+                "content": texto_resposta,
                 "audio": audio_bytes
             })
             
+            # Se usou áudio, limpa o gravador
             if audio_bytes_envio:
                 st.session_state.audio_counter += 1
                 st.rerun()
 
         except Exception as e:
-            st.error(f"Erro ao responder: {e}")
+            st.error(f"Erro ao processar mensagem ou arquivo: {e}")
