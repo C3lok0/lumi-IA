@@ -26,24 +26,7 @@ except Exception:
     st.error("⚠️ Chave 'GEMINI_API_KEY' não encontrada nos Secrets do Streamlit!")
     st.stop()
 
-# 2. Barra lateral (Configurações e envio de arquivo)
-with st.sidebar:
-    st.header("⚙️ Configurações")
-    falar_resposta = st.toggle("🔊 Ouvir respostas da LUMI", value=True)
-    
-    st.write("---")
-    st.header("📁 Anexar Arquivo")
-    uploaded_file = st.file_uploader(
-        "Envie um PDF, Imagem ou Texto:", 
-        type=["pdf", "png", "jpg", "jpeg", "txt", "csv"]
-    )
-    
-    if st.button("🗑️ Limpar Conversa"):
-        st.session_state.messages = []
-        st.session_state.audio_counter += 1
-        st.rerun()
-
-# 3. Inicializar cliente e sessão
+# 2. Inicializar cliente e sessão
 if "client" not in st.session_state:
     st.session_state.client = genai.Client(api_key=API_KEY)
 
@@ -69,14 +52,69 @@ if "messages" not in st.session_state:
 if "audio_counter" not in st.session_state:
     st.session_state.audio_counter = 0
 
-# 4. Exibir histórico de mensagens
+if "prompt_sugerido" not in st.session_state:
+    st.session_state.prompt_sugerido = None
+
+# 3. Barra lateral (Configurações, Arquivos e Download)
+with st.sidebar:
+    st.header("Configurações")
+    falar_resposta = st.toggle("🔊 Ouvir respostas da LUMI", value=True)
+    
+    st.write("---")
+    st.header("Anexar Arquivo")
+    uploaded_file = st.file_uploader(
+        "Envie um PDF, Imagem ou Texto:", 
+        type=["pdf", "png", "jpg", "jpeg", "txt", "csv"]
+    )
+    
+    st.write("---")
+    st.header("Opções da Conversa")
+    
+    # Gerar arquivo de texto com o histórico para download
+    if st.session_state.messages:
+        historico_texto = "HISTÓRICO DE CONVERSA COM A LUMI (FATEC)\n" + "="*40 + "\n\n"
+        for msg in st.session_state.messages:
+            autor = "LUMI" if msg["role"] == "assistant" else "VOCÊ"
+            historico_texto += f"[{autor}]: {msg['content']}\n\n"
+        
+        st.download_button(
+            label="Baixar Conversa (.txt)",
+            data=historico_texto,
+            file_name="conversa_lumi.txt",
+            mime="text/plain"
+        )
+    
+    if st.button(" Limpar Conversa"):
+        st.session_state.messages = []
+        st.session_state.audio_counter += 1
+        st.session_state.prompt_sugerido = None
+        st.rerun()
+
+# 4. Exibir Cards de Sugestão de Perguntas (Apenas se não houver mensagens no chat)
+if not st.session_state.messages:
+    st.write("### 💡 Sugestões de perguntas para começar:")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🌟 Quem criou você?"):
+            st.session_state.prompt_sugerido = "Quem criou você e para qual faculdade?"
+        if st.button("📄 Como você me ajuda com arquivos?"):
+            st.session_state.prompt_sugerido = "Quais tipos de arquivos posso te enviar e o que você consegue analisar neles?"
+            
+    with col2:
+        if st.button("💻 O que é o modelo Gemini 2.5?"):
+            st.session_state.prompt_sugerido = "Explique brevemente o que é o modelo de IA Gemini 2.5 Flash."
+        if st.button("🎓 Dicas para trabalhos acadêmicos"):
+            st.session_state.prompt_sugerido = "Me dê 3 dicas rápidas para estruturar uma boa apresentação acadêmica."
+
+# 5. Exibir histórico de mensagens
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
         if "audio" in message and message["audio"] is not None:
             st.audio(message["audio"], format="audio/mp3", autoplay=False)
 
-# 5. Entradas do Usuário
+# 6. Entradas do Usuário
 st.write("---")
 audio_input = st.audio_input(
     "🎤 Fale com a LUMI clicando no microfone:", 
@@ -84,13 +122,12 @@ audio_input = st.audio_input(
 )
 text_input = st.chat_input("Digite sua mensagem aqui...")
 
-# Identifica o tipo de conteúdo enviado
+# Lógica para captura do prompt (Digitado, Áudio ou Sugestão por botão)
 prompt_envio = None
 audio_bytes_envio = None
 conteudos_para_envio = []
 
 if uploaded_file is not None:
-    # Prepara o arquivo enviado na barra lateral
     file_bytes = uploaded_file.read()
     file_part = types.Part.from_bytes(
         data=file_bytes,
@@ -107,18 +144,20 @@ if audio_input is not None:
     conteudos_para_envio.append(audio_part)
 elif text_input:
     conteudos_para_envio.append(text_input)
+elif st.session_state.prompt_sugerido:
+    conteudos_para_envio.append(st.session_state.prompt_sugerido)
+    st.session_state.prompt_sugerido = None  # Limpa o estado após ler
 
-# 6. Processamento e Resposta da LUMI
+# 7. Processamento e Resposta da LUMI
 if conteudos_para_envio:
-    # Registra no histórico do chat o envio do arquivo se houver
     mensagem_usuario = ""
     if uploaded_file is not None:
         mensagem_usuario += f"📎 *[Arquivo enviado: {uploaded_file.name}]*\n"
     
     if audio_bytes_envio:
         mensagem_usuario += "🎙️ *[Mensagem de áudio enviada]*"
-    elif text_input:
-        mensagem_usuario += text_input
+    elif isinstance(conteudos_para_envio[-1], str):
+        mensagem_usuario += conteudos_para_envio[-1]
 
     st.session_state.messages.append({
         "role": "user", 
@@ -134,7 +173,6 @@ if conteudos_para_envio:
     # Processa com a LUMI
     with st.chat_message("assistant"):
         try:
-            # Envia a lista de partes (Texto/Áudio/Arquivo) para a API
             response = st.session_state.chat.send_message(
                 conteudos_para_envio if len(conteudos_para_envio) > 1 else conteudos_para_envio[0]
             )
@@ -153,7 +191,6 @@ if conteudos_para_envio:
                 "audio": audio_bytes
             })
             
-            # Se usou áudio, limpa o gravador
             if audio_bytes_envio:
                 st.session_state.audio_counter += 1
                 st.rerun()
