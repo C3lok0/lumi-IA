@@ -14,7 +14,7 @@ st.caption("Desenvolvida por Marcelo e Isabelle | FATEC")
 # Função para converter texto da LUMI em áudio com suporte a idioma
 def gerar_audio(texto, lang_code='pt', tld='com.br'):
     texto_limpo = re.sub(r'[\*\_\#\`]', '', texto)
-    tts = gTTS(text=texto_limpo, lang=texto_limpo, tld=tld)
+    tts = gTTS(text=texto_limpo, lang=lang_code, tld=tld)
     fp = io.BytesIO()
     tts.write_to_fp(fp)
     fp.seek(0)
@@ -92,20 +92,18 @@ with st.sidebar:
     st.write("---")
     st.header("Opções da Conversa")
     
-    # Prepara o histórico
-    historico_texto = "HISTÓRICO DE CONVERSA COM A LUMI (FATEC)\n" + "="*40 + "\n\n"
-    for msg in st.session_state.messages:
-        autor = "LUMI" if msg["role"] == "assistant" else "VOCÊ"
-        historico_texto += f"[{autor}]: {msg['content']}\n\n"
-    
-    # O botão agora fica SEMPRE visível (desabilitado se não houver mensagens)
-    st.download_button(
-        label="Baixar Conversa (.txt)",
-        data=historico_texto,
-        file_name="conversa_lumi.txt",
-        mime="text/plain",
-        disabled=len(st.session_state.messages) == 0
-    )
+    if st.session_state.messages:
+        historico_texto = "HISTÓRICO DE CONVERSA COM A LUMI (FATEC)\n" + "="*40 + "\n\n"
+        for msg in st.session_state.messages:
+            autor = "LUMI" if msg["role"] == "assistant" else "VOCÊ"
+            historico_texto += f"[{autor}]: {msg['content']}\n\n"
+        
+        st.download_button(
+            label="Baixar Conversa (.txt)",
+            data=historico_texto,
+            file_name="conversa_lumi.txt",
+            mime="text/plain"
+        )
     
     if st.button("Limpar Conversa"):
         st.session_state.messages = []
@@ -126,8 +124,8 @@ if not st.session_state.messages:
             st.session_state.prompt_sugerido = "Quais tipos de arquivos posso te enviar e o que você consegue analisar neles?"
             
     with col2:
-        if st.button("💻 O que é o modelo Gemini 3.6?"):
-            st.session_state.prompt_sugerido = "Explique brevemente o que é o modelo de IA Gemini Flash."
+        if st.button("💻 O que é o modelo Gemini 2.5?"):
+            st.session_state.prompt_sugerido = "Explique brevemente o que é o modelo de IA Gemini 2.5 Flash."
         if st.button("🎓 Dicas para trabalhos acadêmicos"):
             st.session_state.prompt_sugerido = "Me dê 3 dicas rápidas para estruturar uma boa apresentação acadêmica."
 
@@ -166,6 +164,7 @@ if audio_input is not None:
         mime_type="audio/wav"
     )
     conteudos_para_envio.append(audio_part)
+    # Adiciona instrução explícita para o Gemini transcrever a fala do usuário
     conteudos_para_envio.append("Por favor, responda à minha fala no áudio e inicie a resposta indicando o que você entendeu que eu disse.")
 elif text_input:
     conteudos_para_envio.append(text_input)
