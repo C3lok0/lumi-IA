@@ -6,19 +6,24 @@ from google import genai
 from google.genai import types
 from gtts import gTTS
 
-AVATARES_LUMI = {
-    "neutro": "imagens/lumi_neutro.png",     # Imagem inicial / padrão
-    "feliz": "imagens/lumi_feliz.png",       # Imagem quando responde com sucesso!
-    "erro": "imagens/lumi_erro.png",         # Imagem quando dá erro no Gemini
-    "pensando": "imagens/lumi_pensando.png"   # Imagem para momentos de processamento
+EXPRESSOES_LUMI = {
+    "neutro": "imagens/lumi_neutro.png",     # Aguardando ação do usuário
+    "pensando": "imagens/lumi_pensando.png", # Enquanto gera a resposta
+    "feliz": "imagens/lumi_feliz.png",       # Quando responde com sucesso
+    "erro": "imagens/lumi_erro.png"          # Quando ocorre falha na API
 }
 
 # Configuração da página
 st.set_page_config(page_title="LUMI", page_icon="🌟", layout="wide")
+
+# Estado para controlar qual imagem exibir no canto da tela
+if "expressao_atual" not in st.session_state:
+    st.session_state.expressao_atual = EXPRESSOES_LUMI["neutro"]
+
 st.title("🌟 LUMI - Inteligência Artificial")
 st.caption("Desenvolvida por Marcelo e Isabelle | FATEC")
 
-# Função para converter texto da LUMI em áudio com suporte a idioma
+# Função para converter texto em áudio
 def gerar_audio(texto, lang_code='pt', tld='com.br'):
     texto_limpo = re.sub(r'[\*\_\#\`]', '', texto)
     tts = gTTS(text=texto_limpo, lang=lang_code, tld=tld)
@@ -66,8 +71,15 @@ if "prompt_sugerido" not in st.session_state:
 if "ultimo_tempo" not in st.session_state:
     st.session_state.ultimo_tempo = 0.0
 
-# 3. Barra lateral (Configurações, Métricas, Arquivos e Download)
+# 3. Barra lateral (onde a LUMI fica no canto em destaque)
 with st.sidebar:
+    # 🌟 IMAGEM DA LUMI NO CANTO (BARRA LATERAL)
+    try:
+        st.image(st.session_state.expressao_atual, use_container_width=True)
+    except Exception:
+        st.caption("📷 *[Imagem da LUMI não encontrada na pasta 'imagens/']*")
+        
+    st.write("---")
     st.header("Configurações da LUMI")
     falar_resposta = st.toggle("Ouvir respostas", value=True)
     
@@ -76,7 +88,6 @@ with st.sidebar:
         ["Português (Brasil)", "Português (Portugal)", "Inglês (US)"]
     )
     
-    # Mapeamento do idioma escolhido
     lang_config = {'lang': 'pt', 'tld': 'com.br'}
     if idioma_voz == "Português (Portugal)":
         lang_config = {'lang': 'pt', 'tld': 'pt'}
@@ -117,9 +128,10 @@ with st.sidebar:
         st.session_state.audio_counter += 1
         st.session_state.prompt_sugerido = None
         st.session_state.ultimo_tempo = 0.0
+        st.session_state.expressao_atual = EXPRESSOES_LUMI["neutro"]
         st.rerun()
 
-# 4. Exibir Cards de Sugestão de Perguntas (Apenas se não houver mensagens)
+# 4. Exibir Cards de Sugestão
 if not st.session_state.messages:
     st.write("### 💡 Sugestões de perguntas para começar:")
     col1, col2 = st.columns(2)
@@ -136,12 +148,9 @@ if not st.session_state.messages:
         if st.button("🎓 Dicas para trabalhos acadêmicos"):
             st.session_state.prompt_sugerido = "Me dê 3 dicas rápidas para estruturar uma boa apresentação acadêmica."
 
-# 5. Exibir histórico de mensagens (Carrega o avatar exato salvo na mensagem)
+# 5. Exibir histórico de mensagens sem o ícone do avatar nos balões
 for message in st.session_state.messages:
-    # Se não houver avatar personalizado salvo na mensagem, usa a imagem neutra padrão
-    avatar_chat = message.get("avatar_custom", AVATARES_LUMI["neutro"]) if message["role"] == "assistant" else None
-    
-    with st.chat_message(message["role"], avatar=avatar_chat):
+    with st.chat_message(message["role"]):
         st.write(message["content"])
         if "audio" in message and message["audio"] is not None:
             st.audio(message["audio"], format="audio/mp3", autoplay=False)
@@ -185,6 +194,9 @@ elif st.session_state.prompt_sugerido:
 if conteudos_para_envio:
     inicio_tempo = time.time()
     
+    # 💭 Muda para a expressão "pensando" durante o envio
+    st.session_state.expressao_atual = EXPRESSOES_LUMI["pensando"]
+
     mensagem_usuario = ""
     if uploaded_file is not None:
         mensagem_usuario += f"📎 *[Arquivo enviado: {uploaded_file.name}]*\n"
@@ -212,10 +224,10 @@ if conteudos_para_envio:
         )
         texto_resposta = re.sub(r'\d{2}:\d{2}', '', response.text)
         
-        # 🌟 RESPOSTA DE SUCESSO: Exibe a imagem da LUMI FELIZ!
-        avatar_resposta = AVATARES_LUMI["feliz"]
+        # 🌟 Resposta com sucesso: a LUMI fica FELIZ no canto da tela!
+        st.session_state.expressao_atual = EXPRESSOES_LUMI["feliz"]
         
-        with st.chat_message("assistant", avatar=avatar_resposta):
+        with st.chat_message("assistant"):
             st.write(texto_resposta)
             
             audio_bytes = None
@@ -229,12 +241,10 @@ if conteudos_para_envio:
 
         st.session_state.ultimo_tempo = time.time() - inicio_tempo
 
-        # Salva a mensagem no histórico associando o avatar FELIZ
         st.session_state.messages.append({
             "role": "assistant", 
             "content": texto_resposta,
-            "audio": audio_bytes,
-            "avatar_custom": avatar_resposta
+            "audio": audio_bytes
         })
         
         if audio_bytes_envio:
@@ -242,15 +252,14 @@ if conteudos_para_envio:
             st.rerun()
 
     except Exception as e:
-        # ⚠️ OCORREU UM ERRO: Exibe a imagem da LUMI ERRO!
-        avatar_erro = AVATARES_LUMI["erro"]
+        # ⚠️ Erro na requisição: a LUMI fica com a expressão de ERRO!
+        st.session_state.expressao_atual = EXPRESSOES_LUMI["erro"]
         
-        with st.chat_message("assistant", avatar=avatar_erro):
+        with st.chat_message("assistant"):
             st.error(f"Erro ao processar resposta: {e}")
             
         st.session_state.messages.append({
             "role": "assistant", 
             "content": f"⚠️ Ocorreu um erro ao processar: {e}",
-            "audio": None,
-            "avatar_custom": avatar_erro
+            "audio": None
         })
