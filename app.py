@@ -1,13 +1,17 @@
 import io
 import re
 import time
+import base64
+import os
 import streamlit as st
 from google import genai
 from google.genai import types
 from gtts import gTTS
 
-# DICIONÁRIO DE EXPRESSÕES DA LUMI
-
+# ---------------------------------------------------------
+# 📸 DICIONÁRIO DE EXPRESSÕES DA LUMI
+# Atualize com a extensão correta (.png ou .gif)
+# ---------------------------------------------------------
 EXPRESSOES_LUMI = {
     "neutro": "imagens/lumi_neutro.png",     # Aguardando ação do usuário
     "pensando": "imagens/lumi_pensando.gif", # Enquanto gera a resposta
@@ -25,19 +29,33 @@ if "expressao_atual" not in st.session_state:
 st.title("🌟 LUMI - Inteligência Artificial")
 st.caption("Desenvolvida por Marcelo e Isabelle | FATEC")
 
-#CSS CUSTOMIZADO PARA FIXAR A LUMI NO CANTO INFERIOR DIREITO
+# ---------------------------------------------------------
+# 🛠️ FUNÇÃO PARA CONVERTER IMAGEM LOCAL PARA BASE64 (HTML)
+# ---------------------------------------------------------
+def get_image_base64(caminho_imagem):
+    if os.path.exists(caminho_imagem):
+        with open(caminho_imagem, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode()
+        
+        extensao = caminho_imagem.split(".")[-1].lower()
+        mime_type = "image/gif" if extensao == "gif" else f"image/{extensao}"
+        return f"data:{mime_type};base64,{encoded_string}"
+    return None
+
+# ---------------------------------------------------------
+# 🎨 CSS CUSTOMIZADO PARA FIXAR A LUMI NO CANTO INFERIOR DIREITO
+# ---------------------------------------------------------
 st.markdown(
     """
     <style>
-    /* Container fixo no canto inferior direito */
     .avatar-flutuante {
         position: fixed;
         bottom: 20px;
         right: 20px;
         z-index: 999999;
-        width: 150px; /* Ajuste o tamanho da personagem aqui */
+        width: 150px; /* Ajuste a largura aqui caso precise */
         filter: drop-shadow(0px 4px 10px rgba(0, 0, 0, 0.3));
-        pointer-events: none; /* Permite clicar o que estiver atrás da imagem se necessário */
+        pointer-events: none;
     }
     .avatar-flutuante img {
         width: 100%;
@@ -48,15 +66,17 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Renderiza a LUMI fixada no canto inferior direito
-try:
-    # Usamos o st.markdown para aplicar a classe CSS
+# Renderiza a LUMI fixada no canto inferior direito usando Base64
+img_base64 = get_image_base64(st.session_state.expressao_atual)
+
+if img_base64:
     st.markdown(
-        f'<div class="avatar-flutuante"><img src="{st.session_state.expressao_atual}"></div>',
+        f'<div class="avatar-flutuante"><img src="{img_base64}"></div>',
         unsafe_allow_html=True
     )
-except Exception:
-    pass
+else:
+    # Caso o arquivo não seja encontrado na pasta
+    st.sidebar.warning(f"⚠️ Imagem não encontrada: `{st.session_state.expressao_atual}`")
 
 # Função para converter texto em áudio
 def gerar_audio(texto, lang_code='pt', tld='com.br'):
