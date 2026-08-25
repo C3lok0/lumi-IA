@@ -6,10 +6,12 @@ from google import genai
 from google.genai import types
 from gtts import gTTS
 
+# DICIONÁRIO DE EXPRESSÕES DA LUMI
+
 EXPRESSOES_LUMI = {
     "neutro": "imagens/lumi_neutro.png",     # Aguardando ação do usuário
-    "pensando": "imagens/lumi_pensando.png", # Enquanto gera a resposta
-    "feliz": "imagens/lumi_feliz.png",       # Quando responde com sucesso
+    "pensando": "imagens/lumi_pensando.gif", # Enquanto gera a resposta
+    "feliz": "imagens/lumi_feliz.gif",       # Quando responde com sucesso
     "erro": "imagens/lumi_erro.png"          # Quando ocorre falha na API
 }
 
@@ -22,6 +24,39 @@ if "expressao_atual" not in st.session_state:
 
 st.title("🌟 LUMI - Inteligência Artificial")
 st.caption("Desenvolvida por Marcelo e Isabelle | FATEC")
+
+#CSS CUSTOMIZADO PARA FIXAR A LUMI NO CANTO INFERIOR DIREITO
+st.markdown(
+    """
+    <style>
+    /* Container fixo no canto inferior direito */
+    .avatar-flutuante {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 999999;
+        width: 150px; /* Ajuste o tamanho da personagem aqui */
+        filter: drop-shadow(0px 4px 10px rgba(0, 0, 0, 0.3));
+        pointer-events: none; /* Permite clicar o que estiver atrás da imagem se necessário */
+    }
+    .avatar-flutuante img {
+        width: 100%;
+        height: auto;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# Renderiza a LUMI fixada no canto inferior direito
+try:
+    # Usamos o st.markdown para aplicar a classe CSS
+    st.markdown(
+        f'<div class="avatar-flutuante"><img src="{st.session_state.expressao_atual}"></div>',
+        unsafe_allow_html=True
+    )
+except Exception:
+    pass
 
 # Função para converter texto em áudio
 def gerar_audio(texto, lang_code='pt', tld='com.br'):
@@ -71,15 +106,8 @@ if "prompt_sugerido" not in st.session_state:
 if "ultimo_tempo" not in st.session_state:
     st.session_state.ultimo_tempo = 0.0
 
-# 3. Barra lateral (onde a LUMI fica no canto em destaque)
+# 3. Barra lateral (Configurações, Métricas, Arquivos e Download)
 with st.sidebar:
-    # 🌟 IMAGEM DA LUMI NO CANTO (BARRA LATERAL)
-    try:
-        st.image(st.session_state.expressao_atual, use_container_width=True)
-    except Exception:
-        st.caption("📷 *[Imagem da LUMI não encontrada na pasta 'imagens/']*")
-        
-    st.write("---")
     st.header("Configurações da LUMI")
     falar_resposta = st.toggle("Ouvir respostas", value=True)
     
@@ -131,7 +159,7 @@ with st.sidebar:
         st.session_state.expressao_atual = EXPRESSOES_LUMI["neutro"]
         st.rerun()
 
-# 4. Exibir Cards de Sugestão
+# 4. Exibir Cards de Sugestão de Perguntas
 if not st.session_state.messages:
     st.write("### 💡 Sugestões de perguntas para começar:")
     col1, col2 = st.columns(2)
@@ -148,7 +176,7 @@ if not st.session_state.messages:
         if st.button("🎓 Dicas para trabalhos acadêmicos"):
             st.session_state.prompt_sugerido = "Me dê 3 dicas rápidas para estruturar uma boa apresentação acadêmica."
 
-# 5. Exibir histórico de mensagens sem o ícone do avatar nos balões
+# 5. Exibir histórico de mensagens
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
@@ -194,7 +222,7 @@ elif st.session_state.prompt_sugerido:
 if conteudos_para_envio:
     inicio_tempo = time.time()
     
-    # 💭 Muda para a expressão "pensando" durante o envio
+    # 💭 Muda para a expressão "pensando" no canto da tela
     st.session_state.expressao_atual = EXPRESSOES_LUMI["pensando"]
 
     mensagem_usuario = ""
@@ -217,7 +245,7 @@ if conteudos_para_envio:
         if audio_bytes_envio:
             st.audio(audio_bytes_envio)
 
-    # Bloco da resposta da assistente
+    # Bloco da resposta
     try:
         response = st.session_state.chat.send_message(
             conteudos_para_envio if len(conteudos_para_envio) > 1 else conteudos_para_envio[0]
