@@ -6,8 +6,12 @@ from google import genai
 from google.genai import types
 from gtts import gTTS
 
-# Caminho para a imagem do avatar da LUMI
-AVATAR_LUMI = "imagens/lumi_avatar.png"
+AVATARES_LUMI = {
+    "neutro": "imagens/lumi_neutro.png",     # Imagem inicial / padrão
+    "feliz": "imagens/lumi_feliz.png",       # Imagem quando responde com sucesso!
+    "erro": "imagens/lumi_erro.png",         # Imagem quando dá erro no Gemini
+    "pensando": "imagens/lumi_pensando.png"   # Imagem para momentos de processamento
+}
 
 # Configuração da página
 st.set_page_config(page_title="LUMI", page_icon="🌟", layout="wide")
@@ -127,14 +131,16 @@ if not st.session_state.messages:
             st.session_state.prompt_sugerido = "Quais tipos de arquivos posso te enviar e o que você consegue analisar neles?"
             
     with col2:
-        if st.button("💻 O que é o modelo Gemini 2.5?"):
-            st.session_state.prompt_sugerido = "Explique brevemente o que é o modelo de IA Gemini 2.5 Flash."
+        if st.button("💻 O que é o modelo Gemini 3.6?"):
+            st.session_state.prompt_sugerido = "Explique brevemente o que é o modelo de IA Gemini Flash."
         if st.button("🎓 Dicas para trabalhos acadêmicos"):
             st.session_state.prompt_sugerido = "Me dê 3 dicas rápidas para estruturar uma boa apresentação acadêmica."
 
-# 5. Exibir histórico de mensagens
+# 5. Exibir histórico de mensagens (Carrega o avatar exato salvo na mensagem)
 for message in st.session_state.messages:
-    avatar_chat = AVATAR_LUMI if message["role"] == "assistant" else None
+    # Se não houver avatar personalizado salvo na mensagem, usa a imagem neutra padrão
+    avatar_chat = message.get("avatar_custom", AVATARES_LUMI["neutro"]) if message["role"] == "assistant" else None
+    
     with st.chat_message(message["role"], avatar=avatar_chat):
         st.write(message["content"])
         if "audio" in message and message["audio"] is not None:
@@ -168,7 +174,6 @@ if audio_input is not None:
         mime_type="audio/wav"
     )
     conteudos_para_envio.append(audio_part)
-    # Adiciona instrução explícita para o Gemini transcrever a fala do usuário
     conteudos_para_envio.append("Por favor, responda à minha fala no áudio e inicie a resposta indicando o que você entendeu que eu disse.")
 elif text_input:
     conteudos_para_envio.append(text_input)
@@ -200,14 +205,17 @@ if conteudos_para_envio:
         if audio_bytes_envio:
             st.audio(audio_bytes_envio)
 
-    # Processa com a LUMI exibindo o avatar personalizado
-    with st.chat_message("assistant", avatar=AVATAR_LUMI):
-        try:
-            response = st.session_state.chat.send_message(
-                conteudos_para_envio if len(conteudos_para_envio) > 1 else conteudos_para_envio[0]
-            )
-            texto_resposta = re.sub(r'\d{2}:\d{2}', '', response.text)
-            
+    # Bloco da resposta da assistente
+    try:
+        response = st.session_state.chat.send_message(
+            conteudos_para_envio if len(conteudos_para_envio) > 1 else conteudos_para_envio[0]
+        )
+        texto_resposta = re.sub(r'\d{2}:\d{2}', '', response.text)
+        
+        # 🌟 RESPOSTA DE SUCESSO: Exibe a imagem da LUMI FELIZ!
+        avatar_resposta = AVATARES_LUMI["feliz"]
+        
+        with st.chat_message("assistant", avatar=avatar_resposta):
             st.write(texto_resposta)
             
             audio_bytes = None
@@ -219,18 +227,30 @@ if conteudos_para_envio:
                 )
                 st.audio(audio_bytes, format="audio/mp3", autoplay=True)
 
-            # Calcula tempo gasto na resposta
-            st.session_state.ultimo_tempo = time.time() - inicio_tempo
+        st.session_state.ultimo_tempo = time.time() - inicio_tempo
 
-            st.session_state.messages.append({
-                "role": "assistant", 
-                "content": texto_resposta,
-                "audio": audio_bytes
-            })
+        # Salva a mensagem no histórico associando o avatar FELIZ
+        st.session_state.messages.append({
+            "role": "assistant", 
+            "content": texto_resposta,
+            "audio": audio_bytes,
+            "avatar_custom": avatar_resposta
+        })
+        
+        if audio_bytes_envio:
+            st.session_state.audio_counter += 1
+            st.rerun()
+
+    except Exception as e:
+        # ⚠️ OCORREU UM ERRO: Exibe a imagem da LUMI ERRO!
+        avatar_erro = AVATARES_LUMI["erro"]
+        
+        with st.chat_message("assistant", avatar=avatar_erro):
+            st.error(f"Erro ao processar resposta: {e}")
             
-            if audio_bytes_envio:
-                st.session_state.audio_counter += 1
-                st.rerun()
-
-        except Exception as e:
-            st.error(f"Erro ao processar mensagem ou arquivo: {e}")
+        st.session_state.messages.append({
+            "role": "assistant", 
+            "content": f"⚠️ Ocorreu um erro ao processar: {e}",
+            "audio": None,
+            "avatar_custom": avatar_erro
+        })
