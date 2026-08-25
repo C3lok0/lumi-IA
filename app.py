@@ -6,6 +6,9 @@ from google import genai
 from google.genai import types
 from gtts import gTTS
 
+# Caminho para a imagem do avatar da LUMI
+AVATAR_LUMI = "imagens/lumi_avatar.png"
+
 # Configuração da página
 st.set_page_config(page_title="LUMI", page_icon="🌟", layout="wide")
 st.title("🌟 LUMI - Inteligência Artificial")
@@ -131,7 +134,8 @@ if not st.session_state.messages:
 
 # 5. Exibir histórico de mensagens
 for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
+    avatar_chat = AVATAR_LUMI if message["role"] == "assistant" else None
+    with st.chat_message(message["role"], avatar=avatar_chat):
         st.write(message["content"])
         if "audio" in message and message["audio"] is not None:
             st.audio(message["audio"], format="audio/mp3", autoplay=False)
@@ -196,8 +200,8 @@ if conteudos_para_envio:
         if audio_bytes_envio:
             st.audio(audio_bytes_envio)
 
-    # Processa com a LUMI
-    with st.chat_message("assistant"):
+    # Processa com a LUMI exibindo o avatar personalizado
+    with st.chat_message("assistant", avatar=AVATAR_LUMI):
         try:
             response = st.session_state.chat.send_message(
                 conteudos_para_envio if len(conteudos_para_envio) > 1 else conteudos_para_envio[0]
