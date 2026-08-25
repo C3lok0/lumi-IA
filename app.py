@@ -13,10 +13,10 @@ from gtts import gTTS
 # Atualize com a extensão correta (.png ou .gif)
 # ---------------------------------------------------------
 EXPRESSOES_LUMI = {
-    "neutro": "imagens/lumi_neutro.png",     # Aguardando ação do usuário
+    "neutro": "imagens/lumi_neutro.gif",     # Aguardando ação do usuário
     "pensando": "imagens/lumi_pensando.gif", # Enquanto gera a resposta
-    "feliz": "imagens/lumi_feliz.png",       # Quando responde com sucesso
-    "erro": "imagens/lumi_erro.png"          # Quando ocorre falha na API
+    "feliz": "imagens/lumi_feliz.gif",       # Quando responde com sucesso
+    "erro": "imagens/lumi_erro.gif"          # Quando ocorre falha na API
 }
 
 # Configuração da página
