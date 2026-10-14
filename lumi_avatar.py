@@ -56,8 +56,8 @@ CSS = """
 .lumi-feliz    .lumi-main{animation:lumi-pula .9s steps(6) 3, lumi-some .3s linear var(--hold) forwards}
 .lumi-erro     .lumi-main{animation:lumi-treme .5s steps(5) 3, lumi-some .3s linear var(--hold) forwards}
 .lumi-cansada  .lumi-main{animation:lumi-sono 3s steps(6) infinite}
-/* ao fim do tempo, o standby (camada de baixo) assume sozinho, sem precisar de rerun */
-.lumi-idle{animation:lumi-respira 2s steps(2,jump-none) infinite}
+/* o standby fica invisível por baixo e só aparece quando a Lumi feliz/erro some (sem rerun) */
+.lumi-idle{opacity:0; animation:lumi-respira 2s steps(2,jump-none) infinite, lumi-aparece .3s linear var(--hold) forwards}
 
 /* ---------- balões em pixel art (pontinhos / zzz) ---------- */
 .lumi-bubble{
