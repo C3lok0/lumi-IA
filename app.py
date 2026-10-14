@@ -8,75 +8,16 @@ from google import genai
 from google.genai import types
 from gtts import gTTS
 
-# ---------------------------------------------------------
-# 📸 DICIONÁRIO DE EXPRESSÕES DA LUMI
-# Atualize com a extensão correta (.png ou .gif)
-# ---------------------------------------------------------
-EXPRESSOES_LUMI = {
-    "neutro": "imagens/lumi_neutro.gif",     # Aguardando ação do usuário
-    "pensando": "imagens/lumi_pensando.gif", # Enquanto gera a resposta
-    "feliz": "imagens/lumi_feliz.gif",       # Quando responde com sucesso
-    "erro": "imagens/lumi_erro.gif"          # Quando ocorre falha na API
-}
+from lumi_avatar import LumiAvatar
 
 # Configuração da página
 st.set_page_config(page_title="LUMI", page_icon="🌟", layout="wide")
 
-# Estado para controlar qual imagem exibir no canto da tela
-if "expressao_atual" not in st.session_state:
-    st.session_state.expressao_atual = EXPRESSOES_LUMI["neutro"]
-
 st.title("🌟 LUMI - Inteligência Artificial")
 st.caption("Desenvolvida por Marcelo e Isabelle | FATEC")
 
-# ---------------------------------------------------------
-# 🛠️ FUNÇÃO PARA CONVERTER IMAGEM LOCAL PARA BASE64 (HTML)
-# ---------------------------------------------------------
-def get_image_base64(caminho_imagem):
-    if os.path.exists(caminho_imagem):
-        with open(caminho_imagem, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode()
-        
-        extensao = caminho_imagem.split(".")[-1].lower()
-        mime_type = "image/gif" if extensao == "gif" else f"image/{extensao}"
-        return f"data:{mime_type};base64,{encoded_string}"
-    return None
-
-# ---------------------------------------------------------
-# 🎨 CSS CUSTOMIZADO PARA FIXAR A LUMI NO CANTO INFERIOR DIREITO
-# ---------------------------------------------------------
-st.markdown(
-    """
-    <style>
-    .avatar-flutuante {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        z-index: 999999;
-        width: 150px; /* Ajuste a largura aqui caso precise */
-        filter: drop-shadow(0px 4px 10px rgba(0, 0, 0, 0.3));
-        pointer-events: none;
-    }
-    .avatar-flutuante img {
-        width: 100%;
-        height: auto;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# Renderiza a LUMI fixada no canto inferior direito usando Base64
-img_base64 = get_image_base64(st.session_state.expressao_atual)
-
-if img_base64:
-    st.markdown(
-        f'<div class="avatar-flutuante"><img src="{img_base64}"></div>',
-        unsafe_allow_html=True
-    )
-else:
-    # Caso o arquivo não seja encontrado na pasta
-    st.sidebar.warning(f"⚠️ Imagem não encontrada: `{st.session_state.expressao_atual}`")
+# 🌟 Mini assistente da LUMI fixa no canto da tela (pixel art animada)
+lumi = LumiAvatar()
 
 # Função para converter texto em áudio
 def gerar_audio(texto, lang_code='pt', tld='com.br'):
@@ -176,7 +117,7 @@ with st.sidebar:
         st.session_state.audio_counter += 1
         st.session_state.prompt_sugerido = None
         st.session_state.ultimo_tempo = 0.0
-        st.session_state.expressao_atual = EXPRESSOES_LUMI["neutro"]
+        lumi.set("standby")
         st.rerun()
 
 # 4. Exibir Cards de Sugestão de Perguntas
@@ -242,8 +183,8 @@ elif st.session_state.prompt_sugerido:
 if conteudos_para_envio:
     inicio_tempo = time.time()
     
-    # 💭 Muda para a expressão "pensando" no canto da tela
-    st.session_state.expressao_atual = EXPRESSOES_LUMI["pensando"]
+    # 💭 Lumi pensando enquanto o Gemini gera a resposta
+    lumi.set("pensando")
 
     mensagem_usuario = ""
     if uploaded_file is not None:
@@ -272,8 +213,8 @@ if conteudos_para_envio:
         )
         texto_resposta = re.sub(r'\d{2}:\d{2}', '', response.text)
         
-        # 🌟 Resposta com sucesso: a LUMI fica FELIZ no canto da tela!
-        st.session_state.expressao_atual = EXPRESSOES_LUMI["feliz"]
+        # 🌟 Resposta com sucesso: Lumi feliz (volta ao standby sozinha)
+        lumi.set("feliz")
         
         with st.chat_message("assistant"):
             st.write(texto_resposta)
@@ -300,8 +241,12 @@ if conteudos_para_envio:
             st.rerun()
 
     except Exception as e:
-        # ⚠️ Erro na requisição: a LUMI fica com a expressão de ERRO!
-        st.session_state.expressao_atual = EXPRESSOES_LUMI["erro"]
+        # 😴 Cota/limite da API esgotado -> cansada | qualquer outra falha -> assustada
+        msg_erro = str(e).lower()
+        if "429" in msg_erro or "resource_exhausted" in msg_erro or "quota" in msg_erro or "rate" in msg_erro:
+            lumi.set("cansada")
+        else:
+            lumi.set("erro")
         
         with st.chat_message("assistant"):
             st.error(f"Erro ao processar resposta: {e}")
